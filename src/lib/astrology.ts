@@ -63,14 +63,29 @@ function getEclipticLongitude(body: Astronomy.Body, date: Date): number {
   return ((lon % 360) + 360) % 360;
 }
 
-// Approximate ascendant from birth time and date using GMST
-function calcAscendant(date: Date, latDeg: number): number {
-  // Local Sidereal Time approximation
+// Geocode a place name using OpenStreetMap Nominatim (free, no API key)
+async function geocodePlace(place: string): Promise<{ lat: number; lon: number }> {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(place)}&format=json&limit=1`,
+      { headers: { "User-Agent": "Gnosys-Astrology-App/1.0" } }
+    );
+    const results = await response.json();
+    if (results && results.length > 0) {
+      return { lat: parseFloat(results[0].lat), lon: parseFloat(results[0].lon) };
+    }
+  } catch (e) {
+    console.warn("Geocoding failed, using default coordinates:", e);
+  }
+  return { lat: 40.7128, lon: -74.006 }; // default to NYC
+}
+
+// Calculate ascendant using local sidereal time and latitude
+function calcAscendant(date: Date, latDeg: number, lonDeg: number): number {
   const gmst = Astronomy.SiderealTime(date); // hours
-  // Assume longitude 0 for simplicity (place isn't geocoded)
-  const lst = gmst * 15; // convert hours to degrees
-  // Ascendant ≈ LST + correction for latitude (simplified)
-  const obliquity = 23.4393; // Earth's axial tilt
+  const lstHours = gmst + lonDeg / 15; // adjust for longitude
+  const lst = ((lstHours * 15) % 360 + 360) % 360; // convert to degrees
+  const obliquity = 23.4393;
   const latRad = (latDeg * Math.PI) / 180;
   const oblRad = (obliquity * Math.PI) / 180;
   const lstRad = (lst * Math.PI) / 180;
@@ -78,18 +93,18 @@ function calcAscendant(date: Date, latDeg: number): number {
     Math.cos(lstRad),
     -(Math.sin(lstRad) * Math.cos(oblRad) + Math.tan(latRad) * Math.sin(oblRad))
   );
-  let ascDeg = ((asc * 180) / Math.PI + 360) % 360;
-  return ascDeg;
+  return ((asc * 180) / Math.PI + 360) % 360;
 }
 
-export function generateChart(name: string, birthDate: string, birthTime: string, birthPlace: string): NatalChart {
+export async function generateChart(name: string, birthDate: string, birthTime: string, birthPlace: string): Promise<NatalChart> {
   // Parse birth datetime
   const [hours, minutes] = birthTime.split(":").map(Number);
   const dateObj = new Date(birthDate + "T00:00:00Z");
   dateObj.setUTCHours(hours, minutes, 0, 0);
 
-  // Calculate accurate planetary positions
-  const ascendant = calcAscendant(dateObj, 40); // default ~40° latitude
+  // Geocode the birth place for accurate ascendant
+  const { lat, lon } = await geocodePlace(birthPlace);
+  const ascendant = calcAscendant(dateObj, lat, lon);
 
   const placements: PlanetPlacement[] = PLANETS.map((planet) => {
     const degree = getEclipticLongitude(planet.body, dateObj);
