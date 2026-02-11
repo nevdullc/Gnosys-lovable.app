@@ -48,7 +48,7 @@ const Index = () => {
           </div>
           <div className="relative z-10 flex flex-col items-center justify-center min-h-[50vh] px-4 pt-20 pb-8">
             <h1 className="text-5xl md:text-7xl font-display font-bold text-gradient-gold mb-4 text-center leading-tight">
-              Celestia
+              Gnosys
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground font-body font-light text-center max-w-lg">
               Map the stars of your soul. Compare cosmic connections with those you love.
@@ -60,7 +60,7 @@ const Index = () => {
       {/* Main Content */}
       <div className="relative z-10 container mx-auto px-4 py-8">
         {charts.length > 0 && (
-          <h1 className="text-3xl font-display font-bold text-gradient-gold mb-8 text-center">Celestia</h1>
+          <h1 className="text-3xl font-display font-bold text-gradient-gold mb-8 text-center">Gnosys</h1>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
