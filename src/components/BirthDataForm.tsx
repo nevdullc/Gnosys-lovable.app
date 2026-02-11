@@ -7,9 +7,10 @@ import { Sparkles } from "lucide-react";
 
 interface BirthDataFormProps {
   onSubmit: (data: { name: string; birthDate: string; birthTime: string; birthPlace: string }) => void;
+  isLoading?: boolean;
 }
 
-const BirthDataForm = ({ onSubmit }: BirthDataFormProps) => {
+const BirthDataForm = ({ onSubmit, isLoading }: BirthDataFormProps) => {
   const [name, setName] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [birthTime, setBirthTime] = useState("");
@@ -82,8 +83,8 @@ const BirthDataForm = ({ onSubmit }: BirthDataFormProps) => {
               required
             />
           </div>
-          <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-gold-light font-body font-medium">
-            Generate Chart ✨
+          <Button type="submit" disabled={isLoading} className="w-full bg-primary text-primary-foreground hover:bg-gold-light font-body font-medium">
+            {isLoading ? "Mapping the stars…" : "Generate Chart ✨"}
           </Button>
         </form>
       </CardContent>

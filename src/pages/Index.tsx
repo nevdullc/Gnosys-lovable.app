@@ -12,10 +12,19 @@ const Index = () => {
   const [charts, setCharts] = useState<NatalChart[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const handleAddChart = (data: { name: string; birthDate: string; birthTime: string; birthPlace: string }) => {
-    const chart = generateChart(data.name, data.birthDate, data.birthTime, data.birthPlace);
-    setCharts((prev) => [...prev, chart]);
-    setSelectedIds((prev) => [...prev, chart.id]);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleAddChart = async (data: { name: string; birthDate: string; birthTime: string; birthPlace: string }) => {
+    setIsGenerating(true);
+    try {
+      const chart = await generateChart(data.name, data.birthDate, data.birthTime, data.birthPlace);
+      setCharts((prev) => [...prev, chart]);
+      setSelectedIds((prev) => [...prev, chart.id]);
+    } catch (e) {
+      console.error("Failed to generate chart:", e);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleToggle = (id: string) => {
@@ -66,7 +75,7 @@ const Index = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Sidebar */}
           <div className="lg:col-span-3 space-y-6">
-            <BirthDataForm onSubmit={handleAddChart} />
+            <BirthDataForm onSubmit={handleAddChart} isLoading={isGenerating} />
             <ProfileList
               charts={charts}
               selectedIds={selectedIds}
