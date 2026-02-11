@@ -1,3 +1,5 @@
+import * as Astronomy from "astronomy-engine";
+
 export const ZODIAC_SIGNS = [
   { name: "Aries", symbol: "♈", element: "Fire", startDeg: 0 },
   { name: "Taurus", symbol: "♉", element: "Earth", startDeg: 30 },
@@ -14,16 +16,16 @@ export const ZODIAC_SIGNS = [
 ] as const;
 
 export const PLANETS = [
-  { name: "Sun", symbol: "☉", color: "hsl(40, 75%, 55%)" },
-  { name: "Moon", symbol: "☽", color: "hsl(220, 20%, 80%)" },
-  { name: "Mercury", symbol: "☿", color: "hsl(180, 40%, 60%)" },
-  { name: "Venus", symbol: "♀", color: "hsl(330, 50%, 65%)" },
-  { name: "Mars", symbol: "♂", color: "hsl(0, 60%, 55%)" },
-  { name: "Jupiter", symbol: "♃", color: "hsl(30, 50%, 55%)" },
-  { name: "Saturn", symbol: "♄", color: "hsl(45, 20%, 50%)" },
-  { name: "Uranus", symbol: "♅", color: "hsl(190, 60%, 55%)" },
-  { name: "Neptune", symbol: "♆", color: "hsl(230, 60%, 60%)" },
-  { name: "Pluto", symbol: "♇", color: "hsl(280, 30%, 50%)" },
+  { name: "Sun", symbol: "☉", color: "hsl(40, 75%, 55%)", body: Astronomy.Body.Sun },
+  { name: "Moon", symbol: "☽", color: "hsl(220, 20%, 80%)", body: Astronomy.Body.Moon },
+  { name: "Mercury", symbol: "☿", color: "hsl(180, 40%, 60%)", body: Astronomy.Body.Mercury },
+  { name: "Venus", symbol: "♀", color: "hsl(330, 50%, 65%)", body: Astronomy.Body.Venus },
+  { name: "Mars", symbol: "♂", color: "hsl(0, 60%, 55%)", body: Astronomy.Body.Mars },
+  { name: "Jupiter", symbol: "♃", color: "hsl(30, 50%, 55%)", body: Astronomy.Body.Jupiter },
+  { name: "Saturn", symbol: "♄", color: "hsl(45, 20%, 50%)", body: Astronomy.Body.Saturn },
+  { name: "Uranus", symbol: "♅", color: "hsl(190, 60%, 55%)", body: Astronomy.Body.Uranus },
+  { name: "Neptune", symbol: "♆", color: "hsl(230, 60%, 60%)", body: Astronomy.Body.Neptune },
+  { name: "Pluto", symbol: "♇", color: "hsl(280, 30%, 50%)", body: Astronomy.Body.Pluto },
 ] as const;
 
 export const HOUSES = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -46,75 +48,58 @@ export interface NatalChart {
   ascendant: number;
 }
 
-// Accurate Sun sign from birth date
-function getSunSign(birthDate: string): { sign: string; degree: number } {
-  const date = new Date(birthDate + "T12:00:00Z");
-  const month = date.getUTCMonth() + 1; // 1-12
-  const day = date.getUTCDate();
-
-  // Zodiac date boundaries (approximate tropical zodiac)
-  const boundaries: { sign: string; month: number; day: number }[] = [
-    { sign: "Capricorn", month: 1, day: 1 },
-    { sign: "Aquarius", month: 1, day: 20 },
-    { sign: "Pisces", month: 2, day: 19 },
-    { sign: "Aries", month: 3, day: 21 },
-    { sign: "Taurus", month: 4, day: 20 },
-    { sign: "Gemini", month: 5, day: 21 },
-    { sign: "Cancer", month: 6, day: 21 },
-    { sign: "Leo", month: 7, day: 23 },
-    { sign: "Virgo", month: 8, day: 23 },
-    { sign: "Libra", month: 9, day: 23 },
-    { sign: "Scorpio", month: 10, day: 23 },
-    { sign: "Sagittarius", month: 11, day: 22 },
-    { sign: "Capricorn", month: 12, day: 22 },
-  ];
-
-  let signName = "Capricorn";
-  for (let i = boundaries.length - 1; i >= 0; i--) {
-    const b = boundaries[i];
-    if (month > b.month || (month === b.month && day >= b.day)) {
-      signName = b.sign;
-      break;
-    }
-  }
-
-  const signData = ZODIAC_SIGNS.find(z => z.name === signName)!;
-  // Estimate degree within sign (rough: day-of-sign / 30)
-  const startIdx = boundaries.findIndex(b => b.sign === signName && (b.month < month || (b.month === month && b.day <= day)));
-  const entryDate = boundaries[startIdx >= 0 ? startIdx : 0];
-  const entryD = new Date(Date.UTC(date.getUTCFullYear(), entryDate.month - 1, entryDate.day));
-  const daysIn = Math.max(0, (date.getTime() - entryD.getTime()) / 86400000);
-  const degreeInSign = Math.min(29, Math.floor(daysIn));
-  const degree = signData.startDeg + degreeInSign;
-
-  return { sign: signName, degree };
+function degToSign(deg: number): string {
+  const normalized = ((deg % 360) + 360) % 360;
+  const idx = Math.floor(normalized / 30);
+  return ZODIAC_SIGNS[idx].name;
 }
 
-// Generate chart with accurate Sun sign; other planets use seeded positions
+function getEclipticLongitude(body: Astronomy.Body, date: Date): number {
+  if (body === Astronomy.Body.Sun) {
+    const sunPos = Astronomy.SunPosition(date);
+    return ((sunPos.elon % 360) + 360) % 360;
+  }
+  const lon = Astronomy.EclipticLongitude(body, date);
+  return ((lon % 360) + 360) % 360;
+}
+
+// Approximate ascendant from birth time and date using GMST
+function calcAscendant(date: Date, latDeg: number): number {
+  // Local Sidereal Time approximation
+  const gmst = Astronomy.SiderealTime(date); // hours
+  // Assume longitude 0 for simplicity (place isn't geocoded)
+  const lst = gmst * 15; // convert hours to degrees
+  // Ascendant ≈ LST + correction for latitude (simplified)
+  const obliquity = 23.4393; // Earth's axial tilt
+  const latRad = (latDeg * Math.PI) / 180;
+  const oblRad = (obliquity * Math.PI) / 180;
+  const lstRad = (lst * Math.PI) / 180;
+  const asc = Math.atan2(
+    Math.cos(lstRad),
+    -(Math.sin(lstRad) * Math.cos(oblRad) + Math.tan(latRad) * Math.sin(oblRad))
+  );
+  let ascDeg = ((asc * 180) / Math.PI + 360) % 360;
+  return ascDeg;
+}
+
 export function generateChart(name: string, birthDate: string, birthTime: string, birthPlace: string): NatalChart {
-  const seed = hashString(`${name}${birthDate}${birthTime}${birthPlace}`);
-  const rng = seededRandom(seed);
+  // Parse birth datetime
+  const [hours, minutes] = birthTime.split(":").map(Number);
+  const dateObj = new Date(birthDate + "T00:00:00Z");
+  dateObj.setUTCHours(hours, minutes, 0, 0);
 
-  const ascendant = Math.floor(rng() * 360);
-
-  const sunData = getSunSign(birthDate);
+  // Calculate accurate planetary positions
+  const ascendant = calcAscendant(dateObj, 40); // default ~40° latitude
 
   const placements: PlanetPlacement[] = PLANETS.map((planet) => {
-    if (planet.name === "Sun") {
-      const house = ((Math.floor((sunData.degree - ascendant + 360) % 360 / 30)) % 12) + 1;
-      return { planet: "Sun", sign: sunData.sign, degree: sunData.degree, house };
-    }
-    const degree = (ascendant + Math.floor(rng() * 360)) % 360;
-    const signIndex = Math.floor(degree / 30);
-    const house = ((Math.floor((degree - ascendant + 360) % 360 / 30)) % 12) + 1;
-    return {
-      planet: planet.name,
-      sign: ZODIAC_SIGNS[signIndex].name,
-      degree,
-      house,
-    };
+    const degree = getEclipticLongitude(planet.body, dateObj);
+    const sign = degToSign(degree);
+    const house = ((Math.floor(((degree - ascendant + 360) % 360) / 30)) % 12) + 1;
+    return { planet: planet.name, sign, degree: Math.round(degree * 100) / 100, house };
   });
 
+  const seed = hashString(`${name}${birthDate}${birthTime}${birthPlace}`);
+  const rng = seededRandom(seed);
   const colors = [
     "hsl(40, 75%, 55%)",
     "hsl(200, 70%, 55%)",
@@ -132,7 +117,7 @@ export function generateChart(name: string, birthDate: string, birthTime: string
     birthPlace,
     color: colors[Math.floor(rng() * colors.length)],
     placements,
-    ascendant,
+    ascendant: Math.round(ascendant * 100) / 100,
   };
 }
 
