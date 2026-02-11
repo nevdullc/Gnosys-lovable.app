@@ -46,14 +46,64 @@ export interface NatalChart {
   ascendant: number;
 }
 
-// Deterministic pseudo-random chart based on birth data
+// Accurate Sun sign from birth date
+function getSunSign(birthDate: string): { sign: string; degree: number } {
+  const date = new Date(birthDate + "T12:00:00Z");
+  const month = date.getUTCMonth() + 1; // 1-12
+  const day = date.getUTCDate();
+
+  // Zodiac date boundaries (approximate tropical zodiac)
+  const boundaries: { sign: string; month: number; day: number }[] = [
+    { sign: "Capricorn", month: 1, day: 1 },
+    { sign: "Aquarius", month: 1, day: 20 },
+    { sign: "Pisces", month: 2, day: 19 },
+    { sign: "Aries", month: 3, day: 21 },
+    { sign: "Taurus", month: 4, day: 20 },
+    { sign: "Gemini", month: 5, day: 21 },
+    { sign: "Cancer", month: 6, day: 21 },
+    { sign: "Leo", month: 7, day: 23 },
+    { sign: "Virgo", month: 8, day: 23 },
+    { sign: "Libra", month: 9, day: 23 },
+    { sign: "Scorpio", month: 10, day: 23 },
+    { sign: "Sagittarius", month: 11, day: 22 },
+    { sign: "Capricorn", month: 12, day: 22 },
+  ];
+
+  let signName = "Capricorn";
+  for (let i = boundaries.length - 1; i >= 0; i--) {
+    const b = boundaries[i];
+    if (month > b.month || (month === b.month && day >= b.day)) {
+      signName = b.sign;
+      break;
+    }
+  }
+
+  const signData = ZODIAC_SIGNS.find(z => z.name === signName)!;
+  // Estimate degree within sign (rough: day-of-sign / 30)
+  const startIdx = boundaries.findIndex(b => b.sign === signName && (b.month < month || (b.month === month && b.day <= day)));
+  const entryDate = boundaries[startIdx >= 0 ? startIdx : 0];
+  const entryD = new Date(Date.UTC(date.getUTCFullYear(), entryDate.month - 1, entryDate.day));
+  const daysIn = Math.max(0, (date.getTime() - entryD.getTime()) / 86400000);
+  const degreeInSign = Math.min(29, Math.floor(daysIn));
+  const degree = signData.startDeg + degreeInSign;
+
+  return { sign: signName, degree };
+}
+
+// Generate chart with accurate Sun sign; other planets use seeded positions
 export function generateChart(name: string, birthDate: string, birthTime: string, birthPlace: string): NatalChart {
   const seed = hashString(`${name}${birthDate}${birthTime}${birthPlace}`);
   const rng = seededRandom(seed);
 
   const ascendant = Math.floor(rng() * 360);
-  
-  const placements: PlanetPlacement[] = PLANETS.map((planet, i) => {
+
+  const sunData = getSunSign(birthDate);
+
+  const placements: PlanetPlacement[] = PLANETS.map((planet) => {
+    if (planet.name === "Sun") {
+      const house = ((Math.floor((sunData.degree - ascendant + 360) % 360 / 30)) % 12) + 1;
+      return { planet: "Sun", sign: sunData.sign, degree: sunData.degree, house };
+    }
     const degree = (ascendant + Math.floor(rng() * 360)) % 360;
     const signIndex = Math.floor(degree / 30);
     const house = ((Math.floor((degree - ascendant + 360) % 360 / 30)) % 12) + 1;
