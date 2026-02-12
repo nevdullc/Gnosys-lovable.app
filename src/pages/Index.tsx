@@ -6,6 +6,7 @@ import BirthDataForm from "@/components/BirthDataForm";
 import ProfileList from "@/components/ProfileList";
 import PlacementsList from "@/components/PlacementsList";
 import AspectTable from "@/components/AspectTable";
+import BatchImportDialog from "@/components/BatchImportDialog";
 import heroCosmos from "@/assets/hero-cosmos.jpg";
 
 const Index = () => {
@@ -22,6 +23,21 @@ const Index = () => {
       setSelectedIds((prev) => [...prev, chart.id]);
     } catch (e) {
       console.error("Failed to generate chart:", e);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleBatchImport = async (entries: { name: string; birthDate: string; birthTime: string; birthPlace: string }[]) => {
+    setIsGenerating(true);
+    try {
+      for (const entry of entries) {
+        const chart = await generateChart(entry.name, entry.birthDate, entry.birthTime, entry.birthPlace);
+        setCharts((prev) => [...prev, chart]);
+        setSelectedIds((prev) => [...prev, chart.id]);
+      }
+    } catch (e) {
+      console.error("Failed to import batch:", e);
     } finally {
       setIsGenerating(false);
     }
@@ -76,6 +92,7 @@ const Index = () => {
           {/* Sidebar */}
           <div className="lg:col-span-3 space-y-6">
             <BirthDataForm onSubmit={handleAddChart} isLoading={isGenerating} />
+            <BatchImportDialog onImport={handleBatchImport} isLoading={isGenerating} />
             <ProfileList
               charts={charts}
               selectedIds={selectedIds}
